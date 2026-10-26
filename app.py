@@ -4,14 +4,27 @@ import pandas as pd
 import plotly.graph_objects as go  # type: ignore
 import streamlit as st
 
-# Carga el dataset
-df = pd.read_csv(
-    'vehicles_us.csv')
+from pathlib import Path
+import os
+
+DATA = Path(os.environ.get('VEHICLES_DATA_PATH', str(Path(__file__).resolve().parent / 'data/vehicles_us.csv')))
+# También admite la ubicación usada en el despliegue inicial.
+if not DATA.is_file() and 'VEHICLES_DATA_PATH' not in os.environ:
+    DATA = Path(__file__).resolve().parent / 'vehicles_us.csv'
+if not DATA.is_file():
+    st.error('No se encontró vehicles_us.csv. Configura VEHICLES_DATA_PATH con su ubicación.')
+    st.stop()
+
+@st.cache_data
+def cargar_datos(path):
+    return pd.read_csv(path)
+
+df = cargar_datos(str(DATA))
 
 # "===============Estructura de Titulo y Subtitulo inicial================="
 
 # Agrega un título a la aplicación
-st.title("Vizualización de datos con Streamlit y Plotly")
+st.title("Explorador de vehículos usados")
 
 # "===============Analisis Exploratorio con DataFrame================="
 
@@ -22,7 +35,7 @@ st.subheader("Vista previa del dataset")
 st.write("En esta sección, exploraremos el dataset de vehículos para entender su estructura y características. A continuación, se muestra una vista previa de los datos, junto con algunas opciones para filtrar y analizar la información.")
 
 # Crea una columna nueva llamada 'brand' extrayendo la marca del vehículo de la columna 'model'
-df['brand'] = df['model'].astype(str).str.split().str[0].str.title()
+df['brand'] = df['model'].fillna('').astype(str).str.split().str[0].fillna('').str.title()
 
 # Filtrar filas donde 'brand' no es nulo ni vacío
 df_filtered = df[df['brand'].notna() & (df['brand'] != '')]
@@ -35,10 +48,13 @@ brands_over_10000 = df_brand_counts[df_brand_counts > 10000].index.tolist()
 show_top_brands = st.checkbox("Mostrar solo marcas con más de 10000 anuncios")
 
 if show_top_brands:
-    df = df[df['brand'].isin(brands_over_10000)]
+    df = df_filtered[df_filtered['brand'].isin(brands_over_10000)].copy()
     st.write(
         f"Mostrando marcas con más de 10000 anuncios: {len(brands_over_10000)}")
 
+df = df[df.brand.ne('')].copy()
+df_filtered = df.copy()
+st.caption(f"{len(df):,} anuncios en la selección")
 st.dataframe(df)
 
 # "===============Gráfico de Barras con Plotly================="
@@ -105,7 +121,7 @@ if bar_button:
 # Crear un boton para crear un Grafico de dispersion para mostrar la relacion entre el odometro y el precio.
 st.header("Gráfico de Dispersión: Relación entre Odómetro y Precio")
 
-st.write("Este gráfico de dispersión muestra la relación entre el odómetro (kilometraje) y el precio de los vehículos. Cada punto representa un vehículo, y la posición en el eje horizontal indica su kilometraje, mientras que la posición en el eje vertical indica su precio. Puedes usar este gráfico para identificar tendencias, como si los vehículos con mayor kilometraje tienden a tener precios más bajos. Haz clic en el botón para generar el gráfico de dispersión.")
+st.write("Este gráfico de dispersión muestra la relación entre el odómetro y el precio de los vehículos. Cada punto representa un vehículo, y la posición en el eje horizontal indica la lectura de su odómetro, mientras que la posición en el eje vertical indica su precio. Puedes usar este gráfico para identificar tendencias, como si los vehículos con mayor kilometraje tienden a tener precios más bajos. Haz clic en el botón para generar el gráfico de dispersión.")
 
 # Botón para crear el gráfico de dispersión
 scatter_button = st.button("Crear gráfico de dispersión")
@@ -126,7 +142,7 @@ if scatter_button:
     # Actualiza el layout del gráfico con títulos, estilos y configuración de visualización
     scatter_fig.update_layout(title_text='Relación entre Odómetro y Precio',
                               title_x=0.35,  # Posición del título (centrado)
-                              xaxis_title_text='Odómetro (km)', yaxis_title_text='Precio ($)',
+                              xaxis_title_text='Odómetro (unidad original)', yaxis_title_text='Precio ($)',
                               # Grid del eje x
                               xaxis_showgrid=True, xaxis_gridcolor='rgba(200, 200, 200, 0.3)',
                               # Grid del eje y
@@ -178,7 +194,7 @@ if hist_button:
         st.plotly_chart(hist_condition_year_fig)
 
     if st.session_state.hist_odometer:
-        # Crea un gráfico de histograma para mostrar la distribución del odómetro (kilometraje) de los vehículos
+        # Crea un gráfico de histograma para mostrar la distribución del odómetro de los vehículos
         hist_odometer_fig = go.Figure(data=go.Histogram(
             x=df['odometer'],  # Valores del eje x: kilometraje del vehículo
             nbinsx=50,        # Número de bins (barras) en el histograma
@@ -190,7 +206,7 @@ if hist_button:
         hist_odometer_fig.update_layout(title_text='Distribución del Odómetro',
                                         # Posición del título (centrado)
                                         title_x=0.35,
-                                        xaxis_title_text='Odómetro (km)', yaxis_title_text='Cantidad de Vehículos',
+                                        xaxis_title_text='Odómetro (unidad original)', yaxis_title_text='Cantidad de Vehículos',
                                         xaxis_showgrid=True, xaxis_gridcolor='rgba(200, 200, 200, 0.3)',
                                         yaxis_showgrid=True, yaxis_gridcolor='rgba(200, 200, 200, 0.3)'
                                         )
@@ -202,7 +218,7 @@ if hist_button:
 
 st.header("Histograma Comparativo de Precios por Marca")
 
-st.write("Selecciona dos marcas para comparar la distribución de sus precios mediante un histograma. La primera marca se mostrará en rojo y la segunda en azul.")
+st.write("Selecciona dos marcas para comparar la distribución de sus precios mediante un histograma. La primera marca se mostrará en azul y la segunda en rojo.")
 
 # Obtener la lista de marcas únicas ordenadas
 brand_list = sorted(df_filtered['brand'].unique())
@@ -211,7 +227,7 @@ brand_list = sorted(df_filtered['brand'].unique())
 brand1 = st.selectbox("Selecciona la primera marca", brand_list, key="brand1")
 
 # Selectbox para la segunda marca
-brand2 = st.selectbox("Selecciona la segunda marca", brand_list, key="brand2")
+brand2 = st.selectbox("Selecciona la segunda marca", brand_list, index=min(1, len(brand_list)-1), key="brand2")
 
 # Botón para crear el histograma comparativo
 compare_button = st.button("Crear histograma comparativo")
