@@ -10,7 +10,11 @@ Construí una aplicación para explorar anuncios de vehículos usados y comparar
 
 Permitir que una persona explore las características de los anuncios y compare marcas sin tener que ejecutar un notebook. La aplicación trabaja con **51 525 anuncios** del archivo `vehicles_us.csv`.
 
-**[Abrir la aplicación en Render](https://edag-proyect-7.onrender.com/)**
+## Versión demo
+
+**[Abrir la demo interactiva en Render](https://edag-proyect-7.onrender.com/)**
+
+Puedes explorar los anuncios y generar los gráficos desde el navegador, sin instalar el proyecto.
 
 ## Qué hice
 
